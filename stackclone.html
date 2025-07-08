@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stack Research</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Dynamic MathJax Configuration -->
+    <script>
+        // This script must run before the MathJax script tag to configure it properly.
+        const customMacros = JSON.parse(localStorage.getItem('st-macros') || '[]');
+        const mathjaxMacros = {};
+        for (const macro of customMacros) {
+            // The key for MathJax macros should not include the leading backslash.
+            const commandName = macro.command.startsWith('\\') ? macro.command.substring(1) : macro.command;
+            // The value is the LaTeX expansion.
+            mathjaxMacros[commandName] = macro.expansion;
+        }
+
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                macros: mathjaxMacros
+            },
+            svg: {
+                fontCache: 'global'
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+    <style>
+        :root {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #2d2d2d;
+            --border-color: #444;
+            --text-color: #f0f0f0;
+            --accent-color: #3e8ed0;
+            --accent-hover: #367ab8;
+            --danger-color: #e53e3e;
+            --danger-hover: #c53030;
+            --pin-color: #f6ad55;
+            --pin-hover: #ed8936;
+        }
+        body {
+            background-color: var(--primary-bg);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            background-color: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .input, .textarea {
+            background-color: var(--primary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            width: 100%;
+            color: var(--text-color);
+            transition: border-color 0.3s;
+        }
+        .input:focus, .textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        .btn {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+        .btn-danger {
+            background-color: var(--danger-color);
+        }
+        .btn-danger:hover {
+            background-color: var(--danger-hover);
+        }
+        .btn-pin {
+            background-color: var(--pin-color);
+        }
+        .btn-pin:hover {
+            background-color: var(--pin-hover);
+        }
+        .tag {
+            background-color: #3e4a5a;
+            color: #c8d3e3;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-right: 5px;
+            display: inline-block;
+        }
+        .timestamp {
+            color: #999;
+            font-size: 0.8rem;
+        }
+        .question-item {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .question-item:hover {
+            background-color: #333;
+        }
+        .preview-pane {
+            border: 1px dashed var(--border-color);
+            padding: 20px;
+            margin-top: 15px;
+            min-height: 100px;
+            border-radius: 8px;
+        }
+        .hidden {
+            display: none;
+        }
+        mjx-container {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        mjx-container[display="true"] {
+            display: block;
+            margin: 1em 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="app">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold">Stack Research</h1>
+            <div class="flex gap-4">
+                <button class="btn" id="settingsBtn">Settings</button>
+                <button class="btn" id="newQuestionBtn">Ask a Question</button>
+            </div>
+        </header>
+
+        <!-- Main View: Search and Question List -->
+        <div id="mainView">
+            <div class="card">
+                <input type="text" id="searchInput" class="input" placeholder="Search by tag...">
+            </div>
+            <div id="questionList"></div>
+        </div>
+
+        <!-- Question Form View -->
+        <div id="questionFormView" class="hidden"></div>
+
+        <!-- Single Question View -->
+        <div id="singleQuestionView" class="hidden"></div>
+
+        <!-- Settings View -->
+        <div id="settingsView" class="hidden"></div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-lg shadow-xl text-center max-w-sm mx-auto">
+            <h3 class="text-xl font-bold mb-4">Are you sure?</h3>
+            <p class="text-gray-300 mb-6">This action cannot be undone.</p>
+            <div class="flex justify-center gap-4">
+                <button id="cancelDeleteBtn" class="btn bg-gray-600 hover:bg-gray-700">Cancel</button>
+                <button id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const db = {
+            getQuestions: () => JSON.parse(localStorage.getItem('st-questions') || '[]'),
+            saveQuestions: (questions) => localStorage.setItem('st-questions', JSON.stringify(questions)),
+            getMacros: () => JSON.parse(localStorage.getItem('st-macros') || '[]'),
+            saveMacros: (macros) => localStorage.setItem('st-macros', JSON.stringify(macros)),
+        };
+
+        const app = {
+            questions: [],
+            macros: [],
+            currentView: 'main',
+            editingId: null,
+            deletingInfo: { type: null, id: null },
+
+            init() {
+                this.questions = db.getQuestions();
+                this.macros = db.getMacros();
+                this.attachEventListeners();
+                this.render();
+            },
+
+            attachEventListeners() {
+                document.getElementById('newQuestionBtn').addEventListener('click', () => this.showQuestionForm());
+                document.getElementById('settingsBtn').addEventListener('click', () => this.showSettingsView());
+                document.getElementById('searchInput').addEventListener('input', (e) => this.renderQuestionList(e.target.value));
+                document.getElementById('cancelDeleteBtn').addEventListener('click', () => this.hideDeleteConfirmation());
+                document.getElementById('confirmDeleteBtn').addEventListener('click', () => this.confirmDelete());
+            },
+
+            render() {
+                this.renderQuestionList();
+            },
+
+            renderQuestionList(tagFilter = '') {
+                const questionListEl = document.getElementById('questionList');
+                questionListEl.innerHTML = '';
+
+                const filteredQuestions = this.questions.filter(q => {
+                    if (!tagFilter) return true;
+                    const searchTags = tagFilter.toLowerCase().split(',').map(t => t.trim()).filter(t => t);
+                    return searchTags.some(st => q.tags.some(qt => qt.toLowerCase().includes(st)));
+                }).sort((a, b) => {
+                    // Pinned questions first, then by timestamp
+                    if (a.pinned && !b.pinned) return -1;
+                    if (!a.pinned && b.pinned) return 1;
+                    return new Date(b.timestamp) - new Date(a.timestamp);
+                });
+
+                if (filteredQuestions.length === 0) {
+                    questionListEl.innerHTML = `<div class="card text-center text-gray-400">No questions found. Ask one!</div>`;
+                    return;
+                }
+
+                filteredQuestions.forEach(q => {
+                    const questionEl = document.createElement('div');
+                    questionEl.className = 'card question-item';
+                    questionEl.dataset.id = q.id;
+                    const pinIndicator = q.pinned ? '<span class="mr-2" title="Pinned">📌</span>' : '';
+                    questionEl.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="text-xl font-semibold text-blue-300">${pinIndicator}${q.title}</h3>
+                                <div class="mt-2">
+                                    ${q.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                                </div>
+                            </div>
+                            <div class="text-right flex-shrink-0 ml-4">
+                                <div class="timestamp">${new Date(q.timestamp).toLocaleString()}</div>
+                                <div class="text-gray-400 mt-1">${(q.answers || []).length} answer(s)</div>
+                            </div>
+                        </div>
+                    `;
+                    questionEl.addEventListener('click', () => this.showSingleQuestionView(q.id));
+                    questionListEl.appendChild(questionEl);
+                });
+                
+                MathJax.typesetPromise([questionListEl]);
+            },
+
+            showView(viewName) {
+                ['mainView', 'questionFormView', 'singleQuestionView', 'settingsView'].forEach(id => {
+                    document.getElementById(id).classList.add('hidden');
+                });
+                document.getElementById(viewName).classList.remove('hidden');
+                this.currentView = viewName;
+            },
+
+            showMainView() {
+                this.editingId = null;
+                this.showView('mainView');
+                this.renderQuestionList(document.getElementById('searchInput').value);
+            },
+
+            showQuestionForm(id = null) {
+                this.editingId = id;
+                const viewEl = document.getElementById('questionFormView');
+                const question = id ? this.questions.find(q => q.id === id) : null;
+
+                viewEl.innerHTML = `
+                    <div class="card">
+                        <h2 class="text-2xl font-bold mb-4">${id ? 'Edit Question' : 'Ask a New Question'}</h2>
+                        <div class="mb-4">
+                            <label for="questionTitle" class="block mb-2">Title (supports LaTeX)</label>
+                            <input type="text" id="questionTitle" class="input" placeholder="Is the set of all ordinals $\\Omega$ well-ordered?" value="${question ? this.escapeHtml(question.title) : ''}">
+                        </div>
+                        <div class="mb-4">
+                            <label for="questionBody" class="block mb-2">Body (supports LaTeX with $...$ and $$...$$)</label>
+                            <textarea id="questionBody" class="textarea" rows="10" placeholder="Let's explore the properties of $\\kappa$. If $\\kappa$ is a regular cardinal and...">${question ? this.escapeHtml(question.body) : ''}</textarea>
+                            <div class="mt-4">
+                                <h3 class="font-bold">Live Preview:</h3>
+                                <div id="questionPreview" class="preview-pane">${question ? question.body : ''}</div>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="questionTags" class="block mb-2">Tags (comma-separated)</label>
+                            <input type="text" id="questionTags" class="input" placeholder="large-cardinals, zfc, model-theory" value="${question ? this.escapeHtml(question.tags.join(', ')) : ''}">
+                        </div>
+                        <div class="flex justify-end gap-4">
+                            <button class="btn bg-gray-600 hover:bg-gray-700" id="cancelQuestionBtn">Cancel</button>
+                            <button class="btn" id="saveQuestionBtn">Save Question</button>
+                        </div>
+                    </div>
+                `;
+                this.showView('questionFormView');
+                MathJax.typesetPromise([viewEl.querySelector('#questionPreview')]);
+
+                viewEl.querySelector('#cancelQuestionBtn').addEventListener('click', () => this.showMainView());
+                viewEl.querySelector('#saveQuestionBtn').addEventListener('click', () => this.saveQuestion());
+                
+                const questionBodyTextarea = viewEl.querySelector('#questionBody');
+                const questionPreviewPane = viewEl.querySelector('#questionPreview');
+                questionBodyTextarea.addEventListener('input', () => {
+                    questionPreviewPane.innerHTML = questionBodyTextarea.value;
+                    MathJax.typesetPromise([questionPreviewPane]);
+                });
+            },
+            
+            saveQuestion() {
+                const title = document.getElementById('questionTitle').value.trim();
+                const body = document.getElementById('questionBody').value.trim();
+                const tags = document.getElementById('questionTags').value.split(',').map(t => t.trim()).filter(t => t);
+
+                if (!title || !body || tags.length === 0) {
+                    alert('Please fill in the title, body, and at least one tag.');
+                    return;
+                }
+
+                if (this.editingId) {
+                    const question = this.questions.find(q => q.id === this.editingId);
+                    question.title = title;
+                    question.body = body;
+                    question.tags = tags;
+                    question.timestamp = new Date().toISOString(); // Update timestamp on edit
+                } else {
+                    this.questions.push({
+                        id: `q_${Date.now()}`, title, body, tags, pinned: false,
+                        timestamp: new Date().toISOString(), answers: []
+                    });
+                }
+                db.saveQuestions(this.questions);
+                this.showMainView();
+            },
+            
+            showSingleQuestionView(id) {
+                const question = this.questions.find(q => q.id === id);
+                if (!question) return;
+
+                const viewEl = document.getElementById('singleQuestionView');
+                const pinButtonText = question.pinned ? 'Unpin' : 'Pin';
+
+                viewEl.innerHTML = `
+                    <div class="card">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h2 class="text-3xl font-bold">${question.title}</h2>
+                                <div class="mt-2">${question.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="timestamp">Asked: ${new Date(question.timestamp).toLocaleString()}</div>
+                                <div class="flex gap-2 mt-2">
+                                    <button class="btn btn-pin text-xs" data-pin-question-id="${question.id}">${pinButtonText}</button>
+                                    <button class="btn text-xs" data-edit-question-id="${question.id}">Edit</button>
+                                    <button class="btn btn-danger text-xs" data-delete-question-id="${question.id}">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="prose prose-invert max-w-none">${question.body}</div>
+                    </div>
+                     <div id="answersList" class="ml-8">
+                        ${this.renderAnswers(question)}
+                    </div>
+                    <div class="card ml-8 mt-6">
+                        <h3 class="text-xl font-bold mb-4">Your Answer</h3>
+                        <textarea id="newAnswerBody" class="textarea" rows="8" placeholder="My proposed solution..."></textarea>
+                        <div class="mt-4"><h3 class="font-bold">Live Preview:</h3><div id="answerPreview" class="preview-pane"></div></div>
+                        <div class="flex justify-end mt-4"><button class="btn" id="saveAnswerBtn" data-question-id="${question.id}">Post Answer</button></div>
+                    </div>
+                    <button class="btn bg-gray-600 hover:bg-gray-700 mt-6" id="backToMainBtn">Back to All Questions</button>
+                `;
+                
+                this.showView('singleQuestionView');
+                MathJax.typesetPromise([viewEl]);
+
+                // Attach event listeners for this view
+                viewEl.querySelector('#backToMainBtn').addEventListener('click', () => this.showMainView());
+                viewEl.querySelector(`[data-edit-question-id="${question.id}"]`).addEventListener('click', () => this.showQuestionForm(question.id));
+                viewEl.querySelector(`[data-delete-question-id="${question.id}"]`).addEventListener('click', () => this.showDeleteConfirmation('question', question.id));
+                viewEl.querySelector(`[data-pin-question-id="${question.id}"]`).addEventListener('click', () => this.togglePin(question.id));
+                viewEl.querySelector('#saveAnswerBtn').addEventListener('click', (e) => this.saveAnswer(e.target.dataset.questionId));
+
+                // Live preview for answer form
+                const answerBodyTextarea = viewEl.querySelector('#newAnswerBody');
+                const answerPreviewPane = viewEl.querySelector('#answerPreview');
+                answerBodyTextarea.addEventListener('input', () => {
+                    answerPreviewPane.innerHTML = answerBodyTextarea.value;
+                    MathJax.typesetPromise([answerPreviewPane]);
+                });
+
+                // Edit answer listeners
+                viewEl.querySelectorAll('[data-edit-answer-id]').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const answerId = e.currentTarget.dataset.editAnswerId;
+                        const questionId = e.currentTarget.dataset.questionId;
+                        this.showAnswerEditForm(questionId, answerId);
+                    });
+                });
+            },
+            
+            renderAnswers(question) {
+                if(!question.answers || question.answers.length === 0) return `<div class="card text-gray-400">No answers yet.</div>`;
+                return question.answers.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)).map(ans => `
+                    <div class="card" id="answer-${ans.id}">
+                        <div class="flex justify-between items-start mb-4">
+                           <div class="timestamp">Answered: ${new Date(ans.timestamp).toLocaleString()}</div>
+                           <button class="btn text-xs" data-edit-answer-id="${ans.id}" data-question-id="${question.id}">Edit Answer</button>
+                        </div>
+                        <div class="prose prose-invert max-w-none">${ans.body}</div>
+                    </div>
+                `).join('');
+            },
+
+            saveAnswer(questionId) {
+                const body = document.getElementById('newAnswerBody').value.trim();
+                if(!body) {
+                    alert('Answer body cannot be empty.');
+                    return;
+                }
+                
+                const question = this.questions.find(q => q.id === questionId);
+                if (!question.answers) {
+                    question.answers = [];
+                }
+
+                const newAnswer = {
+                    id: `a_${Date.now()}`,
+                    body: body,
+                    timestamp: new Date().toISOString()
+                };
+                question.answers.push(newAnswer);
+                db.saveQuestions(this.questions);
+                this.showSingleQuestionView(questionId); // Re-render the view
+            },
+            
+            showAnswerEditForm(questionId, answerId) {
+                const question = this.questions.find(q => q.id === questionId);
+                const answer = question.answers.find(a => a.id === answerId);
+                const answerEl = document.getElementById(`answer-${answerId}`);
+
+                answerEl.innerHTML = `
+                    <h4 class="text-lg font-bold mb-2">Editing Answer</h4>
+                    <textarea class="textarea edit-answer-textarea" rows="6">${this.escapeHtml(answer.body)}</textarea>
+                    <div class="mt-2">
+                        <h4 class="font-bold">Live Preview:</h4>
+                        <div class="preview-pane edit-answer-preview">${answer.body}</div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-2">
+                        <button class="btn text-xs bg-gray-600 hover:bg-gray-700" data-cancel-edit-answer>Cancel</button>
+                        <button class="btn text-xs" data-save-edit-answer>Save Changes</button>
+                    </div>
+                `;
+                MathJax.typesetPromise([answerEl]);
+
+                const textarea = answerEl.querySelector('.edit-answer-textarea');
+                const preview = answerEl.querySelector('.edit-answer-preview');
+                
+                textarea.addEventListener('input', () => {
+                    preview.innerHTML = textarea.value;
+                    MathJax.typesetPromise([preview]);
+                });
+
+                answerEl.querySelector('[data-cancel-edit-answer]').addEventListener('click', () => {
+                    this.showSingleQuestionView(questionId);
+                });
+
+                answerEl.querySelector('[data-save-edit-answer]').addEventListener('click', () => {
+                    const newBody = textarea.value.trim();
+                    if (newBody) {
+                        answer.body = newBody;
+                        answer.timestamp = new Date().toISOString();
+                        db.saveQuestions(this.questions);
+                    }
+                    this.showSingleQuestionView(questionId);
+                });
+            },
+
+            togglePin(questionId) {
+                const question = this.questions.find(q => q.id === questionId);
+                if (question) {
+                    question.pinned = !question.pinned;
+                    question.timestamp = new Date().toISOString(); // Update timestamp to re-sort
+                    db.saveQuestions(this.questions);
+                    this.showSingleQuestionView(questionId); // Re-render the view to update the button
+                }
+            },
+            
+            showSettingsView() {
+                const viewEl = document.getElementById('settingsView');
+                viewEl.innerHTML = `
+                    <div class="card">
+                        <h2 class="text-2xl font-bold mb-6">Settings</h2>
+                        
+                        <!-- Backup & Restore -->
+                        <div class="mb-8">
+                            <h3 class="text-xl font-bold mb-4">Backup & Restore</h3>
+                            <p class="text-gray-400 mb-4">Save all your questions, answers, and custom commands to a file, or restore from a backup.</p>
+                            <div class="flex gap-4">
+                                <button id="backupBtn" class="btn">Download Backup</button>
+                                <label for="restoreFile" class="btn bg-gray-600 hover:bg-gray-700 cursor-pointer">Restore from Backup</label>
+                                <input type="file" id="restoreFile" class="hidden" accept=".json">
+                            </div>
+                        </div>
+
+                        <!-- Custom Commands -->
+                        <div class="border-t border-gray-600 pt-6">
+                            <h3 class="text-xl font-bold mb-4">Manage Custom LaTeX Commands</h3>
+                            <div id="macrosList" class="mb-6"></div>
+                            <div class="border-t border-gray-600 pt-6">
+                                <h3 id="macroFormTitle" class="text-xl font-bold mb-4">Add New Command</h3>
+                                <input type="hidden" id="macroIdInput">
+                                <div class="grid md:grid-cols-2 gap-4 items-end">
+                                    <div>
+                                        <label for="macroCommand" class="block mb-2">Command (e.g., \\ac)</label>
+                                        <input type="text" id="macroCommand" class="input">
+                                    </div>
+                                    <div>
+                                        <label for="macroExpansion" class="block mb-2">Expansion (e.g., \\mathsf{AC})</label>
+                                        <input type="text" id="macroExpansion" class="input">
+                                    </div>
+                                </div>
+                                <div class="flex justify-end gap-4 mt-4">
+                                    <button id="cancelMacroEditBtn" class="btn bg-gray-600 hover:bg-gray-700 hidden">Cancel</button>
+                                    <button id="saveMacroBtn" class="btn">Save Command</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn bg-gray-600 hover:bg-gray-700 mt-6" id="backToMainFromSettingsBtn">Back to All Questions</button>
+                `;
+                this.showView('settingsView');
+                this.renderMacrosList();
+
+                viewEl.querySelector('#backToMainFromSettingsBtn').addEventListener('click', () => this.showMainView());
+                viewEl.querySelector('#saveMacroBtn').addEventListener('click', () => this.saveMacro());
+                viewEl.querySelector('#cancelMacroEditBtn').addEventListener('click', () => this.resetMacroForm());
+                viewEl.querySelector('#backupBtn').addEventListener('click', () => this.backupData());
+                viewEl.querySelector('#restoreFile').addEventListener('change', (e) => this.restoreData(e));
+            },
+
+            renderMacrosList() {
+                const listEl = document.getElementById('macrosList');
+                if (!listEl) return;
+                if (this.macros.length === 0) {
+                    listEl.innerHTML = `<p class="text-gray-400">No custom commands defined yet.</p>`;
+                    return;
+                }
+                listEl.innerHTML = this.macros.map(macro => `
+                    <div class="flex justify-between items-center p-3 rounded-md hover:bg-gray-700">
+                        <div>
+                            <code class="text-lg text-blue-300">${this.escapeHtml(macro.command)}</code>
+                            <span class="mx-2 text-gray-400">&rarr;</span>
+                            <code class="text-lg">${this.escapeHtml(macro.expansion)}</code>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="btn text-xs" data-edit-macro-id="${macro.id}">Edit</button>
+                            <button class="btn btn-danger text-xs" data-delete-macro-id="${macro.id}">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                listEl.querySelectorAll('[data-edit-macro-id]').forEach(btn => {
+                    btn.addEventListener('click', e => this.editMacro(e.currentTarget.dataset.editMacroId));
+                });
+                listEl.querySelectorAll('[data-delete-macro-id]').forEach(btn => {
+                    btn.addEventListener('click', e => this.showDeleteConfirmation('macro', e.currentTarget.dataset.deleteMacroId));
+                });
+            },
+
+            saveMacro() {
+                const id = document.getElementById('macroIdInput').value;
+                const command = document.getElementById('macroCommand').value.trim();
+                const expansion = document.getElementById('macroExpansion').value.trim();
+
+                if (!command.startsWith('\\') || command.length < 2 || !expansion) {
+                    alert('Command must start with \\ and have at least one character. Expansion cannot be empty.');
+                    return;
+                }
+
+                if (id) {
+                    const macro = this.macros.find(m => m.id === id);
+                    macro.command = command;
+                    macro.expansion = expansion;
+                } else {
+                    this.macros.push({ id: `m_${Date.now()}`, command, expansion });
+                }
+                db.saveMacros(this.macros);
+                alert('Command saved. The application will now reload to apply the changes.');
+                location.reload();
+            },
+
+            editMacro(id) {
+                const macro = this.macros.find(m => m.id === id);
+                document.getElementById('macroFormTitle').textContent = 'Edit Command';
+                document.getElementById('macroIdInput').value = macro.id;
+                document.getElementById('macroCommand').value = macro.command;
+                document.getElementById('macroExpansion').value = macro.expansion;
+                document.getElementById('cancelMacroEditBtn').classList.remove('hidden');
+            },
+
+            resetMacroForm() {
+                document.getElementById('macroFormTitle').textContent = 'Add New Command';
+                document.getElementById('macroIdInput').value = '';
+                document.getElementById('macroCommand').value = '';
+                document.getElementById('macroExpansion').value = '';
+                document.getElementById('cancelMacroEditBtn').classList.add('hidden');
+            },
+
+            deleteMacro(id) {
+                this.macros = this.macros.filter(m => m.id !== id);
+                db.saveMacros(this.macros);
+                alert('Command deleted. The application will now reload to apply the changes.');
+                location.reload();
+            },
+
+            showDeleteConfirmation(type, id) {
+                this.deletingInfo = { type, id };
+                const modal = document.getElementById('deleteModal');
+                const confirmBtn = document.getElementById('confirmDeleteBtn');
+                modal.querySelector('p').textContent = 'This action cannot be undone.';
+                confirmBtn.textContent = `Delete ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+                modal.classList.remove('hidden');
+            },
+
+            hideDeleteConfirmation() {
+                document.getElementById('deleteModal').classList.add('hidden');
+            },
+
+            confirmDelete() {
+                const { type, id } = this.deletingInfo;
+                if (type === 'question') {
+                    this.questions = this.questions.filter(q => q.id !== id);
+                    db.saveQuestions(this.questions);
+                    this.hideDeleteConfirmation();
+                    this.showMainView();
+                } else if (type === 'macro') {
+                    this.deleteMacro(id); // This will reload the page
+                }
+            },
+            
+            backupData() {
+                const backupData = {
+                    questions: db.getQuestions(),
+                    macros: db.getMacros()
+                };
+                const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `research_log_backup_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            },
+
+            restoreData(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (data && Array.isArray(data.questions) && Array.isArray(data.macros)) {
+                            db.saveQuestions(data.questions);
+                            db.saveMacros(data.macros);
+                            alert('Restore successful! The application will now reload.');
+                            location.reload();
+                        } else {
+                            alert('Invalid backup file format.');
+                        }
+                    } catch (error) {
+                        alert('Error reading backup file. Make sure it is a valid JSON file.');
+                        console.error("Restore error:", error);
+                    }
+                };
+                reader.readAsText(file);
+            },
+
+            escapeHtml(str) {
+                const p = document.createElement("p");
+                p.textContent = str;
+                return p.innerHTML;
+            }
+        };
+
+        app.init();
+    });
+    </script>
+
+</body>
+</html>
